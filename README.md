@@ -2,7 +2,7 @@
 
 A marketing and lead-generation website for **SNT**, a B2B/B2R trade platform connecting contractors, dealers and farmers with verified local manufacturers across construction materials, hardware & electrical, and agri inputs — starting in Shimoga and Davangere, Karnataka.
 
-**Live site:** [gorgeous-torte-24ff79.netlify.app](https://gorgeous-torte-24ff79.netlify.app/) *(update this link if you redeploy to a new URL)*
+**Live site:** [ntvasu5208-oss.github.io/SNT-Website](https://ntvasu5208-oss.github.io/SNT-Website/) — hosted on GitHub Pages
 
 ---
 
@@ -49,15 +49,25 @@ python3 -m http.server 8000
 
 ## Deploying
 
-This site is currently deployed on **Netlify** via drag-and-drop:
+This site is currently live on **GitHub Pages**, served directly from this repo:
+
+- **Live URL:** https://ntvasu5208-oss.github.io/SNT-Website/
+- Every time you want to update the live site, just edit the files in this repo (or upload new versions) — GitHub Pages automatically rebuilds and republishes within a minute or two of any change on the `main` branch
+- Settings for this live at: repo → **Settings → Pages** (Source: Deploy from a branch, Branch: `main`, folder: `/root`)
+
+No separate hosting account, no build step, no expiring free-tier limits — as long as this GitHub repo exists, the site stays live.
+
+### Alternative — Netlify (if you ever prefer it)
+
+Netlify also works well for a static site like this, via drag-and-drop:
 
 1. Go to [netlify.com/drop](https://app.netlify.com/drop)
 2. Drag the whole `SNT-Website` folder onto the page
 3. Netlify gives you a live URL instantly
 
-To update the live site after making changes, just drag the folder in again (or connect this GitHub repo to Netlify for auto-deploys on every push — see below).
+To update a Netlify-hosted site after making changes, just drag the folder in again (or connect this GitHub repo to Netlify for auto-deploys on every push — see below).
 
-### Auto-deploy from GitHub (optional, do this once you're comfortable)
+#### Auto-deploy from GitHub to Netlify (optional)
 
 1. On [netlify.com](https://netlify.com), click **Add new site → Import an existing project**
 2. Connect your GitHub account and pick this repo
