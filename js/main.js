@@ -78,19 +78,15 @@
   function saveToSheet(data){
     if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) return;
     try {
-      // A real HTML form submission is used here on purpose, not fetch/sendBeacon.
-      // Google Apps Script responds with an internal redirect that fetch/sendBeacon
-      // get silently blocked on (a CORS restriction) — a real form POST bypasses
-      // that entirely, the same way clicking a normal link isn't subject to CORS.
-      const form = document.getElementById('sheetForm');
-      form.action = SHEET_WEBHOOK_URL;
-      document.getElementById('sf_role').value = data.role;
-      document.getElementById('sf_name').value = data.name;
-      document.getElementById('sf_phone').value = data.phone;
-      document.getElementById('sf_town').value = data.town;
-      document.getElementById('sf_category').value = data.category;
-      document.getElementById('sf_message').value = data.message;
-      form.submit();
+      // A 1x1 image request — the same technique used by email-open trackers and web
+      // analytics for over 20 years, specifically because it's the most reliable way
+      // to fire a background request that survives the page disappearing right after
+      // (like when WhatsApp opens on mobile). It bypasses CORS entirely (unlike fetch
+      // or sendBeacon, which Apps Script's internal redirect silently blocks) because
+      // loading an image was never subject to those restrictions in the first place.
+      const params = new URLSearchParams(data).toString();
+      const pixel = new Image();
+      pixel.src = SHEET_WEBHOOK_URL + (SHEET_WEBHOOK_URL.indexOf('?') === -1 ? '?' : '&') + params;
     } catch (e) { /* fail silently — WhatsApp send still works either way */ }
   }
 
