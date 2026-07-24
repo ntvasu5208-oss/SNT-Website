@@ -75,28 +75,29 @@
   // Leave as-is if you don't want this — the site works fine without it, this part just won't run.
   const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyyXHbB0Fp1fj_7rraoDweGVv9ih1AEvKeZFzVTmLPPoYKPdSjaoH2Jj0te5CP_v8yD4g/exec";
 
-  function saveToSheet(data, done){
-    if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) { done(); return; }
+  function saveToSheet(data){
+    if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) return;
     try {
-      const iframe = document.getElementById('hidden_iframe');
-      let finished = false;
-      const finish = function(){ if (!finished) { finished = true; done(); } };
-      // Wait for the hidden iframe to confirm the request actually completed before
-      // we hand off to WhatsApp — on mobile, opening WhatsApp can suspend this tab
-      // almost instantly, which can kill the Sheet request mid-flight if we don't wait.
-      iframe.onload = finish;
-      setTimeout(finish, 1500); // safety net in case the load event doesn't fire for any reason
-
-      const form = document.getElementById('sheetForm');
-      form.action = SHEET_WEBHOOK_URL;
-      document.getElementById('sf_role').value = data.role;
-      document.getElementById('sf_name').value = data.name;
-      document.getElementById('sf_phone').value = data.phone;
-      document.getElementById('sf_town').value = data.town;
-      document.getElementById('sf_category').value = data.category;
-      document.getElementById('sf_message').value = data.message;
-      form.submit();
-    } catch (e) { done(); /* fail open — WhatsApp send still works either way */ }
+      const params = new URLSearchParams(data).toString();
+      if (navigator.sendBeacon) {
+        // sendBeacon is built specifically for this situation: it's guaranteed by the
+        // browser to keep trying even if the page is immediately backgrounded or
+        // navigated away from — exactly what happens on mobile when WhatsApp opens.
+        const blob = new Blob([params], { type: 'application/x-www-form-urlencoded' });
+        navigator.sendBeacon(SHEET_WEBHOOK_URL, blob);
+      } else {
+        // Fallback for older browsers without sendBeacon support
+        const form = document.getElementById('sheetForm');
+        form.action = SHEET_WEBHOOK_URL;
+        document.getElementById('sf_role').value = data.role;
+        document.getElementById('sf_name').value = data.name;
+        document.getElementById('sf_phone').value = data.phone;
+        document.getElementById('sf_town').value = data.town;
+        document.getElementById('sf_category').value = data.category;
+        document.getElementById('sf_message').value = data.message;
+        form.submit();
+      }
+    } catch (e) { /* fail silently — WhatsApp send still works either way */ }
   }
 
   function clearEnquiryForm(){
@@ -124,14 +125,14 @@
     const plainText = `Hi SNT, I'm ${roleText}.\n\nName: ${name}\nPhone: ${phone}\nTown: ${town}\nCategory: ${cat}\nDetails: ${msg}`;
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(plainText)}`;
 
-    document.getElementById('formSuccess').textContent = 'Saving your enquiry...';
+    // Fire the Sheet save and open WhatsApp in the very same synchronous click —
+    // no waiting, no delay. Mobile browsers only allow WhatsApp to open when it
+    // happens immediately in direct response to the tap.
+    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg });
+    document.getElementById('formSuccess').textContent = 'Sent! Opening WhatsApp — the form below is now clear and ready for the next enquiry.';
     document.getElementById('formSuccess').classList.add('show');
-
-    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg }, function(){
-      document.getElementById('formSuccess').textContent = 'Sent! Opening WhatsApp — the form below is now clear and ready for the next enquiry.';
-      window.open(url, '_blank');
-      clearEnquiryForm();
-    });
+    window.open(url, '_blank');
+    clearEnquiryForm();
   });
 
   // Scroll reveal
