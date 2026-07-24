@@ -78,25 +78,19 @@
   function saveToSheet(data){
     if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) return;
     try {
-      const params = new URLSearchParams(data).toString();
-      if (navigator.sendBeacon) {
-        // sendBeacon is built specifically for this situation: it's guaranteed by the
-        // browser to keep trying even if the page is immediately backgrounded or
-        // navigated away from — exactly what happens on mobile when WhatsApp opens.
-        const blob = new Blob([params], { type: 'application/x-www-form-urlencoded' });
-        navigator.sendBeacon(SHEET_WEBHOOK_URL, blob);
-      } else {
-        // Fallback for older browsers without sendBeacon support
-        const form = document.getElementById('sheetForm');
-        form.action = SHEET_WEBHOOK_URL;
-        document.getElementById('sf_role').value = data.role;
-        document.getElementById('sf_name').value = data.name;
-        document.getElementById('sf_phone').value = data.phone;
-        document.getElementById('sf_town').value = data.town;
-        document.getElementById('sf_category').value = data.category;
-        document.getElementById('sf_message').value = data.message;
-        form.submit();
-      }
+      // A real HTML form submission is used here on purpose, not fetch/sendBeacon.
+      // Google Apps Script responds with an internal redirect that fetch/sendBeacon
+      // get silently blocked on (a CORS restriction) — a real form POST bypasses
+      // that entirely, the same way clicking a normal link isn't subject to CORS.
+      const form = document.getElementById('sheetForm');
+      form.action = SHEET_WEBHOOK_URL;
+      document.getElementById('sf_role').value = data.role;
+      document.getElementById('sf_name').value = data.name;
+      document.getElementById('sf_phone').value = data.phone;
+      document.getElementById('sf_town').value = data.town;
+      document.getElementById('sf_category').value = data.category;
+      document.getElementById('sf_message').value = data.message;
+      form.submit();
     } catch (e) { /* fail silently — WhatsApp send still works either way */ }
   }
 
@@ -121,14 +115,14 @@
       return;
     }
 
+    // Save to the Sheet FIRST, as the very first thing this click does — this gives
+    // the request the earliest possible head start before WhatsApp takes over the screen.
+    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg });
+
     const roleText = selectedRole==='Buyer' ? 'looking to buy materials' : selectedRole==='Dealer' ? 'a dealer/retailer interested in partnering' : 'a vendor/manufacturer interested in supplying';
     const plainText = `Hi SNT, I'm ${roleText}.\n\nName: ${name}\nPhone: ${phone}\nTown: ${town}\nCategory: ${cat}\nDetails: ${msg}`;
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(plainText)}`;
 
-    // Fire the Sheet save and open WhatsApp in the very same synchronous click —
-    // no waiting, no delay. Mobile browsers only allow WhatsApp to open when it
-    // happens immediately in direct response to the tap.
-    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg });
     document.getElementById('formSuccess').textContent = 'Sent! Opening WhatsApp — the form below is now clear and ready for the next enquiry.';
     document.getElementById('formSuccess').classList.add('show');
     window.open(url, '_blank');
