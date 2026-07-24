@@ -75,19 +75,22 @@
   // Leave as-is if you don't want this — the site works fine without it, this part just won't run.
   const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyyXHbB0Fp1fj_7rraoDweGVv9ih1AEvKeZFzVTmLPPoYKPdSjaoH2Jj0te5CP_v8yD4g/exec";
 
-  function saveToSheet(data){
-    if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) return;
+  function saveToSheet(data, callback){
+    if (!SHEET_WEBHOOK_URL || SHEET_WEBHOOK_URL.indexOf('PASTE_YOUR') === 0) { callback(); return; }
     try {
       // A 1x1 image request — the same technique used by email-open trackers and web
-      // analytics for over 20 years, specifically because it's the most reliable way
-      // to fire a background request that survives the page disappearing right after
-      // (like when WhatsApp opens on mobile). It bypasses CORS entirely (unlike fetch
-      // or sendBeacon, which Apps Script's internal redirect silently blocks) because
+      // analytics for over 20 years. It bypasses CORS entirely (unlike fetch or
+      // sendBeacon, which Apps Script's internal redirect silently blocks) because
       // loading an image was never subject to those restrictions in the first place.
       const params = new URLSearchParams(data).toString();
       const pixel = new Image();
+      let done = false;
+      const finish = function(){ if (!done) { done = true; callback(); } };
+      pixel.onload = finish;
+      pixel.onerror = finish; // still let the person continue even if this fails
+      setTimeout(finish, 3000); // safety net — never block the person for more than 3s
       pixel.src = SHEET_WEBHOOK_URL + (SHEET_WEBHOOK_URL.indexOf('?') === -1 ? '?' : '&') + params;
-    } catch (e) { /* fail silently — WhatsApp send still works either way */ }
+    } catch (e) { callback(); }
   }
 
   function clearEnquiryForm(){
@@ -98,7 +101,27 @@
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
   }
 
-  document.getElementById('submitBtn').addEventListener('click', function(){
+  // Two-step flow, on purpose: mobile browsers only allow WhatsApp to open when it
+  // happens synchronously inside a real, direct tap — so we can't make WhatsApp
+  // wait for the Sheet save to finish within the SAME tap without mobile blocking it.
+  // Instead: tap 1 saves and waits for real confirmation; tap 2 (a genuine fresh
+  // user gesture) opens WhatsApp. This removes the race condition completely
+  // instead of trying to out-run it.
+  let pendingWaUrl = null;
+  const submitBtn = document.getElementById('submitBtn');
+  const submitBtnLabel = submitBtn.querySelector('.btn-label');
+
+  submitBtn.addEventListener('click', function(){
+    if (pendingWaUrl) {
+      // Step 2: a fresh, direct tap — safe to open on any device.
+      window.open(pendingWaUrl, '_blank');
+      clearEnquiryForm();
+      pendingWaUrl = null;
+      submitBtnLabel.textContent = 'Send via WhatsApp';
+      document.getElementById('formSuccess').classList.remove('show');
+      return;
+    }
+
     const name = document.getElementById('fname').value.trim();
     const phone = document.getElementById('fphone').value.trim();
     const town = document.getElementById('ftown').value.trim();
@@ -111,18 +134,22 @@
       return;
     }
 
-    // Save to the Sheet FIRST, as the very first thing this click does — this gives
-    // the request the earliest possible head start before WhatsApp takes over the screen.
-    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg });
-
     const roleText = selectedRole==='Buyer' ? 'looking to buy materials' : selectedRole==='Dealer' ? 'a dealer/retailer interested in partnering' : 'a vendor/manufacturer interested in supplying';
     const plainText = `Hi SNT, I'm ${roleText}.\n\nName: ${name}\nPhone: ${phone}\nTown: ${town}\nCategory: ${cat}\nDetails: ${msg}`;
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(plainText)}`;
 
-    document.getElementById('formSuccess').textContent = 'Sent! Opening WhatsApp — the form below is now clear and ready for the next enquiry.';
+    submitBtn.disabled = true;
+    submitBtnLabel.textContent = 'Saving...';
+    document.getElementById('formSuccess').textContent = 'Saving your enquiry...';
     document.getElementById('formSuccess').classList.add('show');
-    window.open(url, '_blank');
-    clearEnquiryForm();
+
+    saveToSheet({ role: selectedRole, name, phone, town, category: cat, message: msg }, function(){
+      pendingWaUrl = url;
+      submitBtn.disabled = false;
+      submitBtnLabel.textContent = 'Saved! Tap again to open WhatsApp';
+      document.getElementById('formSuccess').textContent = 'Saved. Tap the button once more to open WhatsApp.';
+      document.getElementById('formSuccess').classList.add('show');
+    });
   });
 
   // Scroll reveal
